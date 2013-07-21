@@ -10,7 +10,7 @@ from cuwo.script import ServerScript
 import json
 import time
 
-WEBAPI_VERSION = '0.0.2'
+WEBAPI_VERSION = '0.0.3'
 
 ERROR_UNAUTHORIZED = -1
 ERROR_INVALID_RESOURCE = -2
@@ -40,6 +40,7 @@ def encode_item(item):
         'material': item.material,
         'flags': item.material,
         'level': item.level,
+        'power-level': get_power_level(item.level),
         'upgrades': [encode_item_upgrade(item.items[i])
                      for i in xrange(item.upgrade_count)]
     }
@@ -52,7 +53,8 @@ def encode_player(player, includeSkills=False, includeEquipment=False):
         'position': {'x': player.x, 'y': player.y, 'z': player.z},
         'class': player.class_type,
         'specialization': player.specialization,
-        'level': player.character_level
+        'level': player.level,
+        'power-level': get_power_level(player.level)
     }
     if includeSkills:
         skills = {
@@ -80,6 +82,12 @@ def get_player(server, name):
             if player_name == name:
                 return player
     return None
+
+
+# Thanks to Sarcen for the formula
+def get_power_level(level):
+    power = 101 - 100 / (0.05 * (level - 1) + 1)
+    return int(power)
 
 
 class ErrorResource(Resource):
@@ -220,10 +228,15 @@ class WebAPISite(Site):
 class WebAPIScriptFactory(ServerScript):
     def on_load(self):
         config = self.server.config.webapi
-        self.server.listen_tcp(config.port, WebAPISite(
-            self.server, config.keys))
+        keys = config.get('keys', None)
+        port = config.get('port', 12350)
+        if keys is None or len(keys) == 0:
+            print "You need to specify at least one key to use " \
+                "webapi"
+            return
+        self.server.listen_tcp(port, WebAPISite(self.server, keys))
         print ("webapi (%s) running on port %s" %
-               (WEBAPI_VERSION, config.port))
+               (WEBAPI_VERSION, port))
 
 
 def get_class():
