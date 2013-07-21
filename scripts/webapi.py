@@ -209,11 +209,19 @@ class MessageResource(APIResource):
         return ErrorResource(ERROR_INVALID_METHOD)
 
 
+class WebAPISite(Site):
+    def __init__(self, server, keys):
+        Site.__init__(self, WebAPI(server, keys))
+
+    def startFactory(self):
+        pass
+
+
 class WebAPIScriptFactory(ServerScript):
     def on_load(self):
         config = self.server.config.webapi
-        self.server.listen_tcp(config.port, Site(
-            WebAPI(self.server, config.keys)))
+        self.server.listen_tcp(config.port, WebAPISite(
+            self.server, config.keys))
         print ("webapi (%s) running on port %s" %
                (WEBAPI_VERSION, config.port))
 
