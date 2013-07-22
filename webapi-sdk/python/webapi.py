@@ -109,11 +109,9 @@ class Item (object):
             self.upgrades.append(ItemUpgrade(upgrade))
 
     def __str__(self):
-        string = "PLAYER {name=%s, position=%s}" % (self.name, self.position)
-        if self.has_equipment:
-            string += ' [EQUIPMENT]'
-        if self.has_skills:
-            string += ' [SKILLS]'
+        string = "Item {type=%s, sub_type=%s, rarity=%s, ...}" % (
+            self.type, self.sub_type, self.rarity)
+        string += " [%s upgrades]" % len(self.upgrades)
         return string
 
 
@@ -214,7 +212,7 @@ class WebAPI (object):
     def message(self, message, receiver=None):
         endpoint = 'message/'
         if receiver is not None:
-            endpoint += '/%s/' % receiver
+            endpoint += '%s/' % receiver
         result = self._send(endpoint, message)
         return 'success' in result
 
@@ -249,7 +247,7 @@ def main():
 
     # Send message to player
     if 'Xharon' in status.players:
-        if api.message('Hey. How are you?'):
+        if api.message('Hey. How are you?', 'Xharon'):
             print 'Message has been sent to Xharon'
 
     # Kick player
