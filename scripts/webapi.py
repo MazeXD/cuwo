@@ -38,7 +38,7 @@ def encode_item(item):
         'minus-modifier': item.minus_modifier,
         'rarity': item.rarity,
         'material': item.material,
-        'flags': item.material,
+        'flags': item.flags,
         'level': item.level,
         'power-level': get_power_level(item.level),
         'upgrades': [encode_item_upgrade(item.items[i])
@@ -47,7 +47,7 @@ def encode_item(item):
     return encoded
 
 
-def encode_player(player, includeSkills=False, includeEquipment=False):
+def encode_player(player, include_skills=False, include_equipment=False):
     encoded = {
         'name': player.name,
         'position': {'x': player.x, 'y': player.y, 'z': player.z},
@@ -56,7 +56,7 @@ def encode_player(player, includeSkills=False, includeEquipment=False):
         'level': player.level,
         'power-level': get_power_level(player.level)
     }
-    if includeSkills:
+    if include_skills:
         skills = {
             'pet-master': player.skills[0],
             'riding': player.skills[1],
@@ -69,7 +69,7 @@ def encode_player(player, includeSkills=False, includeEquipment=False):
             'class-skill-3': player.skills[8]
         }
         encoded['skills'] = skills
-    if includeEquipment:
+    if include_equipment:
         encoded['equipment'] = [encode_item(item) for item in player.equipment]
     return encoded
 
@@ -118,6 +118,7 @@ class WebAPI(Resource):
         Resource.__init__(self)
         self.server = server
         self.keys = keys
+        self.putChild('status', StatusResource(self.server))
         self.putChild('player', PlayerResource(self.server))
         self.putChild('kick', KickResource(self.server))
         self.putChild('time', TimeResource(self.server))
@@ -139,41 +140,42 @@ class WebAPI(Resource):
         return json.dumps({'version': WEBAPI_VERSION})
 
 
+class StatusResource(APIResource):
+    isLeaf = True
+
+    def render(self, request):
+        server = self.server
+        players = [connection.name
+                   for connection in server.connections.values()
+                   if connection.has_joined]
+        return json.dumps({'players': players,
+                           'player-limit': server.config.base.max_players,
+                           'seed': server.config.base.seed})
+
+
 class PlayerResource(APIResource):
     def getChild(self, path, request):
         if path is '':
-            return self
+            return ErrorResource(ERROR_INVALID_RESOURCE)
         player = get_player(self.server, path)
         if player is None:
             return ErrorResource(ERROR_INVALID_PLAYER)
-        return PlayerDetailResource(player.entity_data)
+        self.player = player.entity_data
+        return self
 
     def render(self, request):
-        players = [connection.name
-                   for connection in self.server.connections.values()
-                   if connection.has_joined]
-        return json.dumps({'players': players})
-
-
-class PlayerDetailResource(Resource):
-    isLeaf = True
-
-    def __init__(self, player):
-        self.player = player
-
-    def render(self, request):
-        includeSkills = False
-        includeEquipment = False
+        include_skills = False
+        include_equipment = False
         if 'include' in request.args:
             inclusion = [item.lower()
                          for item in request.args['include'][0].split(',')
                          if item is not '']
             if 'skills' in inclusion:
-                includeSkills = True
+                include_skills = True
             if 'equipment' in inclusion:
-                includeEquipment = True
-        return json.dumps({'player': encode_player(self.player, includeSkills,
-                                                   includeEquipment)})
+                include_equipment = True
+        return json.dumps({'player': encode_player(self.player, include_skills,
+                                                   include_equipment)})
 
 
 class KickResource(APIResource):
