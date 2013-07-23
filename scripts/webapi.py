@@ -5,7 +5,8 @@ Publishes a webapi for cuwo
 from twisted.internet import reactor
 from twisted.web.resource import Resource
 from twisted.web.server import Site
-from cuwo.script import ServerScript
+from cuwo import script
+from cuwo.script import ServerScript, InvalidPlayer
 
 import json
 import time
@@ -75,12 +76,13 @@ def encode_player(player, include_skills=False, include_equipment=False):
 
 
 def get_player(server, name):
-    name = name.lower()
-    for player in server.connections.values():
-        if player.has_joined:
-            player_name = player.entity_data.name.lower()
-            if player_name == name:
-                return player
+    try:
+        player = script.get_player(server, name)
+    except (InvalidPlayer):
+        return None
+
+    if player.has_joined:
+        return player
     return None
 
 
@@ -156,26 +158,36 @@ class StatusResource(APIResource):
 class PlayerResource(APIResource):
     def getChild(self, path, request):
         if path is '':
-            return ErrorResource(ERROR_INVALID_RESOURCE)
+            return self
         player = get_player(self.server, path)
         if player is None:
             return ErrorResource(ERROR_INVALID_PLAYER)
-        self.player = player.entity_data
+        self.player = player
         return self
 
     def render(self, request):
-        include_skills = False
-        include_equipment = False
-        if 'include' in request.args:
-            inclusion = [item.lower()
-                         for item in request.args['include'][0].split(',')
-                         if item is not '']
-            if 'skills' in inclusion:
-                include_skills = True
-            if 'equipment' in inclusion:
-                include_equipment = True
-        return json.dumps({'player': encode_player(self.player, include_skills,
-                                                   include_equipment)})
+        if hasattr(self, 'player'):
+            include_skills = False
+            include_equipment = False
+            if 'include' in request.args:
+                inclusion = [item.lower()
+                             for item in request.args['include'][0].split(',')
+                             if item is not '']
+                if 'skills' in inclusion:
+                    include_skills = True
+                if 'equipment' in inclusion:
+                    include_equipment = True
+            encoded = encode_player(self.player.entity_data,
+                                    include_skills,
+                                    include_equipment)
+            encoded['id'] = self.player.entity_id
+            del self.player
+            return json.dumps({'player': encoded})
+        server = self.server
+        players = [{'name': connection.name, 'id': connection.entity_id}
+                   for connection in server.connections.values()
+                   if connection.has_joined]
+        return json.dumps({'players': players})
 
 
 class KickResource(APIResource):
