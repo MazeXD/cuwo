@@ -147,9 +147,7 @@ class StatusResource(APIResource):
 
     def render(self, request):
         server = self.server
-        players = [connection.name
-                   for connection in server.connections.values()
-                   if connection.has_joined]
+        players = [player.name for player in server.players.values()]
         return json.dumps({'players': players,
                            'player-limit': server.config.base.max_players,
                            'seed': server.config.base.seed})
@@ -184,9 +182,8 @@ class PlayerResource(APIResource):
             del self.player
             return json.dumps({'player': encoded})
         server = self.server
-        players = [{'name': connection.name, 'id': connection.entity_id}
-                   for connection in server.connections.values()
-                   if connection.has_joined]
+        players = [{'name': player.name, 'id': player.entity_id}
+                   for player in server.players.values()]
         return json.dumps({'players': players})
 
 
