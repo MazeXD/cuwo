@@ -50,7 +50,9 @@ class Player
 {
     public $has_equipment = false;
     public $has_skills = false;
+    public $detailed = false;
     public $name;
+    public $id;
     public $position;
     public $class_type;
     public $specialization;
@@ -59,11 +61,17 @@ class Player
     public $equipment = array();
     public $skills = array();
 
-    public function __construct($result)
+    public function __construct($result, $detailed = true)
     {
         $this->has_equipment = isset($result['equipment']);
         $this->has_skills = isset($result['skills']);
+        $this->detailed = $detailed;
         $this->name = $result['name'];
+        $this->id = $result['id'];
+        if(!$detailed)
+        {
+            return;
+        }
         $this->position = array('x' => $result['position']['x'],
                                 'y' => $result['position']['y'],
                                 'z' => $result['position']['z']);
@@ -104,7 +112,12 @@ class Player
 
     public function __toString()
     {
-        $string = sprintf('Player {name=%s, ...}', $this->name);
+        $string = sprintf('Player {name=%s, id=%s, ...}', $this->name, 
+                                                          $this->id);
+        if($this->detailed)
+        {
+            $string .= ' [Detailed]';
+        }
         if($this->has_equipment)
         {
             $string .= ' [Has_Equipment]';
@@ -206,7 +219,8 @@ class WebAPI
 
     private function generateUrl($endpoint, $secure, $queryParams = null)
     {
-        $url = sprintf(WebAPI::URL_FORMAT, $this->host, $this->port, $endpoint);
+        $url = sprintf(WebAPI::URL_FORMAT, $this->host, $this->port, 
+                                           $endpoint);
 
         if($secure)
         {
@@ -222,7 +236,8 @@ class WebAPI
         return $url;
     }
 
-    private function send($endpoint = '', $data = null, $secure = true, $queryParams = null)
+    private function send($endpoint = '', $data = null, $secure = true,
+                          $queryParams = null)
     {
         $url = $this->generateUrl($endpoint, $secure, $queryParams);
         $handle = curl_init($url);
@@ -267,6 +282,15 @@ class WebAPI
         return $result;
     }
 
+    private function getName($name)
+    {
+        if(strncmp($name, '#', 1) == 0)
+        {
+            return sprintf('%%23%s', substr($name, 1));
+        }
+        return $name;
+    }
+
     public function version()
     {
         $result = $this->send('', null, false);
@@ -279,8 +303,19 @@ class WebAPI
         return new Status($result);
     }
 
-    public function player($name, $includeEquipment = false, $includeSkills = false)
+    public function player($name = null, $includeEquipment = false,
+                           $includeSkills = false)
     {
+        if(is_null($name))
+        {
+            $result = $this->send('player');
+            $players = array();
+            foreach($result['players'] as $player)
+            {
+                $players[] = new Player($player, false);
+            }
+            return $players;
+        }
         $inclusion = array();
         if($includeEquipment)
         {
@@ -293,15 +328,16 @@ class WebAPI
         $params = null;
         if(count($inclusion) > 0)
         {
-            $params = array('include', implode(',', $inclusion));
+            $params = array('include' => implode(',', $inclusion));
         }
-        $result = $this->send(sprintf('player/%s', $name), null, true, $params);
+        $result = $this->send(sprintf('player/%s', $this->getName($name)),
+                              null, true, $params);
         return new Player($result['player']);
     }
 
     public function kick($name)
     {
-        $result = $this->send(sprintf('kick/%s', $name));
+        $result = $this->send(sprintf('kick/%s', $this->getName($name)));
         return isset($result['success']);
     }
 
@@ -324,7 +360,7 @@ class WebAPI
         $endpoint = 'message/';
         if(!is_null($receiver))
         {
-            $endpoint .= sprintf('%s/', $receiver);
+            $endpoint .= sprintf('%s/', $this->getName($receiver));
         }
         $result = $this->send($endpoint, $message);
         return isset($result['success']);

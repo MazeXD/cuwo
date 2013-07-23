@@ -49,10 +49,14 @@ class Status (object):
 
 
 class Player (object):
-    def __init__(self, result):
+    def __init__(self, result, detailed=True):
         self.has_equipment = 'equipment' in result
         self.has_skills = 'skills' in result
+        self.detailed = detailed
         self.name = result['name']
+        self.id = result['id']
+        if not detailed:
+            return
         self.position = {'x': result['position']['x'],
                          'y': result['position']['y'],
                          'z': result['position']['z']}
@@ -84,8 +88,10 @@ class Player (object):
         }
 
     def __str__(self):
-        string = "Player {name=%s, position=%s, ...}" % (
-            self.name, self.position)
+        string = "Player {name=%s, id=%s, ...}" % (
+            self.name, self.id)
+        if self.detailed:
+            string += ' [Detailed]'
         if self.has_equipment:
             string += ' [Has_Equipment]'
         if self.has_skills:
@@ -174,6 +180,11 @@ class WebAPI (object):
             self._handle_error(result)
         return result
 
+    def _get_name(self, name):
+        if name.startswith('#'):
+            return '%%23%s' % name[1:]
+        return name
+
     def version(self):
         result = self._send(secure=False)
         return result['version']
@@ -182,7 +193,10 @@ class WebAPI (object):
         result = self._send('status')
         return Status(result)
 
-    def player(self, name, include_equipment=False, include_skills=False):
+    def player(self, name=None, include_equipment=False, include_skills=False):
+        if name is None:
+            result = self._send('player')
+            return [Player(player, False) for player in result['players']]
         inclusion = []
         if include_equipment:
             inclusion.append('equipment')
@@ -191,11 +205,12 @@ class WebAPI (object):
         params = None
         if(len(inclusion) > 0):
             params = {'include': ','.join(inclusion)}
-        result = self._send('player/%s' % name, query_params=params)
+        result = self._send('player/%s' % self._get_name(name),
+                            query_params=params)
         return Player(result['player'])
 
     def kick(self, name):
-        result = self._send('kick/%s' % name)
+        result = self._send('kick/%s' % self._get_name(name))
         return 'success' in result
 
     def time(self, value=None):
@@ -212,7 +227,7 @@ class WebAPI (object):
     def message(self, message, receiver=None):
         endpoint = 'message/'
         if receiver is not None:
-            endpoint += '%s/' % receiver
+            endpoint += '%s/' % self._get_name(receiver)
         result = self._send(endpoint, message)
         return 'success' in result
 
@@ -226,6 +241,17 @@ def main():
     # Get status
     status = api.status()
     print status
+
+    # Get players with IDs
+    players = api.player()
+    print ', '.join(str(player) for player in players)
+
+    # Get player with ID 1
+    try:
+        player = api.player('#1')
+        print player
+    except InvalidPlayerError:
+        pass
 
     # Get player details
     if 'Xharon' in status.players:
@@ -244,6 +270,13 @@ def main():
     # Send global message
     if api.message('Hello server - API'):
         print 'Message has been sent'
+
+    # Send message to player with ID 1
+    try:
+        if api.message('Enjoy player #1', '#1'):
+            print 'Message has been sent to #1'
+    except InvalidPlayerError:
+        pass
 
     # Send message to player
     if 'Xharon' in status.players:
