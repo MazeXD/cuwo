@@ -4,11 +4,13 @@
 from cuwo.script import ServerScript, ConnectionScript, command, admin
 from cuwo.entity import (ItemData, ItemUpgrade, NAME_BIT,
                          AppearanceData, EntityData)
-from cuwo.packet import KillAction, create_entity_data, MissionData
+from cuwo.packet import (KillAction, create_entity_data, MissionData,
+                         EntityUpdate)
 from cuwo.vector import Vector3
 from cuwo.constants import CHUNK_SCALE, SECTOR_SCALE, BLOCK_SCALE
 from cuwo.common import set_bit
-from cuwo.server import entity_packet
+
+entity_packet = EntityUpdate()
 
 import time
 import math
