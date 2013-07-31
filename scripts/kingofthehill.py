@@ -15,6 +15,7 @@ import math
 import random
 import copy
 
+KOTH_DATA = 'kingofthehill_settings'
 
 REWARD_WEAPONS = dict({
     # Weapons
@@ -99,9 +100,9 @@ def create_item_data():
 
 
 class KotHConnection(ConnectionScript):
+    reward_points = 0
 
     def on_join(self, event):
-
         if not self.parent.event_entity is None:
             entity_packet.set_entity(self.parent.event_entity,
                                      self.parent.event_entity.entity_id)
@@ -112,42 +113,94 @@ class KotHConnection(ConnectionScript):
                                      self.parent.event_dummy.entity_id)
             self.connection.send_packet(entity_packet)
 
+    def add_points(self, pts):
+        new_points = self.reward_points + pts
+
+        pct = [0.25, 0.75, 0.50]
+        maxpts = self.parent.reward_points
+
+        for i in xrange(len(pct)):
+            if (new_points >= pct[i] * maxpts and
+                    self.reward_points < pct[i] * maxpts):
+                self.connection.send_chat((("You are {}% on your way" +
+                                          " to receiving an item.")
+                                          .format(int(pct[i] * 100))))
+
+        self.reward_points = new_points
+
+    def remove_points(self, pts):
+        self.reward_points -= pts
+
 
 class KotHServer(ServerScript):
     connection_class = KotHConnection
-    proximity_radius = 1700000
-    proximity_check_frequency = 10.0
-    proximity_last_check = 0
-
+    proximity_radius = 1700000 ** 2
+    tick_frequency = 5.0
+    last_tick = 0
     item_drop_radius = 1000000
-
+    reward_points = 10000
     copper_per_tick = 0
-    xp_per_tick = 5
-
-    king_xp_bonus = 20
-    king_reward_frequency = 40.0
-
+    xp_per_tick = 2
+    king_xp_bonus = 10
+    points_per_tick = 0
+    king_points_per_tick = 0
     event_active = False
     event_location = None
     event_entity = None
     event_dummy = None
     event_mission = None
-
     players_in_proximity = []
     king = None
     king_start = 0
     king_rewards = 0
     king_next_reward = 0
-
     max_level = 0
 
     def on_load(self):
+        self.load_config()
+
         try:
             self.max_level = self.server.config.anticheat.level_cap
         except KeyError:
             pass
         except AttributeError:
             pass
+
+        config = self.server.config.kingofthehill
+        self.king_xp_bonus = config.king_xp_bonus
+        self.xp_per_tick = config.xp_per_tick
+        self.copper_per_tick = config.copper_per_tick
+        self.tick_frequency = config.tick_frequency
+
+        self.points_per_tick = (self.reward_points /
+                               (config.reward_frequency /
+                                self.tick_frequency))
+
+        self.king_points_per_tick = (self.reward_points /
+                                    (config.king_reward_frequency /
+                                     self.tick_frequency))
+
+    def load_config(self):
+        self.saved_config = self.server.load_data(KOTH_DATA, {})
+
+        if 'location_x' in self.saved_config:
+            self.event_location = Vector3(self.saved_config['location_x'],
+                                          self.saved_config['location_y'],
+                                          self.saved_config['location_z'])
+        if 'radius' in self.saved_config:
+            self.proximity_radius = self.saved_config['radius']
+
+        if not self.event_location is None:
+            self.start(self.event_location)
+
+    def save_config(self):
+        if not self.event_location is None:
+            self.saved_config['location_x'] = self.event_location.x
+            self.saved_config['location_y'] = self.event_location.y
+            self.saved_config['location_z'] = self.event_location.z
+        self.saved_config['radius'] = self.proximity_radius
+
+        self.server.save_data(KOTH_DATA, self.saved_config)
 
     def update(self, event=None):
         if not self.event_active:
@@ -156,11 +209,11 @@ class KotHServer(ServerScript):
         if not self.event_mission is None:
             self.server.update_packet.missions.append(self.event_mission)
 
-        if (time.time() - self.proximity_last_check >
-                self.proximity_check_frequency):
+        if (time.time() - self.last_tick >
+                self.tick_frequency):
             self.do_proximity_check()
             self.grant_xp_and_gold()
-            self.proximity_last_check = time.time()
+            self.last_tick = time.time()
 
     def do_proximity_check(self):
         server = self.server
@@ -174,10 +227,11 @@ class KotHServer(ServerScript):
             self.players_in_proximity.remove(player)
 
         for player in players:
-            distance = math.sqrt((self.event_location -
-                                  player.position).magnitude_squared())
+            distance = (self.event_location -
+                        player.position).magnitude_squared()
 
-            if distance < self.proximity_radius:
+            if (distance < self.proximity_radius and
+                    player.entity_data.hp > 0):
                 if not player in self.players_in_proximity:
                     self.players_in_proximity.append(player)
             elif player in self.players_in_proximity:
@@ -188,8 +242,6 @@ class KotHServer(ServerScript):
                 (self.king.entity_id
                     != self.players_in_proximity[0].entity_id)):
                 self.king_start = time.time()
-                self.king_next_reward = (time.time() +
-                                         self.king_reward_frequency)
                 self.king = self.players_in_proximity[0]
                 self.event_entity.name = self.king.name
                 self.event_entity.mask = 0x0000FFFFFFFFFFFF
@@ -199,32 +251,40 @@ class KotHServer(ServerScript):
             self.event_entity.mask = 0x0000FFFFFFFFFFFF
             self.king = None
 
+    def find_player_script(self, player):
+        for child in self.children:
+            if child.connection == player:
+                return child
+        return None
+
     def grant_xp_and_gold(self):
         if len(self.players_in_proximity) == 0:
             return
 
         for player in self.players_in_proximity:
             xp = self.xp_per_tick
+            player_script = player.scripts.kingofthehill
             if player.entity_id == self.king.entity_id:
                 xp += self.king_xp_bonus
+                player_script.add_points(self.king_points_per_tick)
+            else:
+                player_script.add_points(self.king_points_per_tick)
+
             self.give_xp(player, xp)
 
+            if player_script.reward_points > self.reward_points:
+                player_script.remove_points(self.reward_points)
+                message = (("{name} has reached {points} points," +
+                           " and receives an additional reward!")
+                           .format(name=player.name,
+                                   points=self.reward_points))
+
+                print message
+                self.server.send_chat(message)
+                item = self.generate_item(self.king.entity_data)
+                self.king.give_item(item)
+
         self.drop_gold(self.copper_per_tick)
-
-        if (not self.king is None and time.time() > self.king_next_reward):
-            self.king_rewards += 1
-            self.king_next_reward += self.king_reward_frequency
-
-            message = (("{name} has been king for {time} seconds," +
-                       " and receives an additional reward!")
-                       .format(name=self.king.name,
-                               time=int(time.time() - self.king_start)))
-
-            print message
-            self.server.send_chat(message)
-
-            item = self.generate_item(self.king.entity_data)
-            self.king.give_item(item)
 
     def drop_gold(self, amount):
         gold_coins = int(amount / 10000)
@@ -278,7 +338,10 @@ class KotHServer(ServerScript):
             update_packet.kill_actions.append(action)
 
     def set_radius(self, topostion):
-        (self.event_location - topostion).magnitude()
+        if not self.event_location is None:
+            dist = (self.event_location - topostion).magnitude_squared()
+            self.proximity_radius = dist
+            self.save_config()
 
     def start(self, location):
         print "King of the hill mode activated at " + str(location)
@@ -420,6 +483,8 @@ class KotHServer(ServerScript):
 
         self.create_mission_data()
 
+        self.save_config()
+
     def create_mission_data(self):
         mission = MissionData()
         mission.section_x = int(self.event_entity.pos.x / SECTOR_SCALE)
@@ -450,14 +515,13 @@ class KotHServer(ServerScript):
         return item
 
     def generate_item(self, entity_data):
-
         item_bias = random.randint(0, 100)
 
-        if item_bias < 40:
+        if item_bias < 30:
             item = self.random_item(REWARD_WEAPONS)
-        elif item_bias < 80:
+        elif item_bias < 60:
             item = self.random_item(REWARD_ARMOR)
-        elif item_bias < 90:
+        elif item_bias < 95:
             item = self.random_item(REWARD_MISC)
         else:
             item = self.random_item(REWARD_PET_ITEMS)
@@ -469,7 +533,7 @@ class KotHServer(ServerScript):
         else:
             item.rarity = random.randint(3, 4)
 
-        if item.type == 19:
+        if item.type == 19 or item.type == 11:
             item.modifier = 0
         else:
             item.modifier = random.randint(0, 16777216)
@@ -490,12 +554,13 @@ def get_class():
 
 
 @command
+@admin
 def koth_set_radius(script):
     script.parent.set_radius(script.connection.position)
 
 
 # koth_start, starts a king of the hill event at the location of the caller
 @command
-#@admin
+@admin
 def koth_start(script):
     script.parent.start(script.connection.position)
