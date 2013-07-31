@@ -369,7 +369,7 @@ class KotHServer(ServerScript):
         entity.speed_flags = 6
         entity.entity_type = 140  # Scarecrow
         entity.current_mode = 0
-        entity.last_shoot_time = 0
+        entity.mode_start_time = 0
         entity.hit_counter = 0
         entity.last_hit_time = 0
 
@@ -492,12 +492,12 @@ class KotHServer(ServerScript):
         mission.something1 = 1
         mission.something2 = 1
         mission.something3 = 1
-        mission.something4 = 1
+        mission.mission_id = 1
         mission.something5 = 1
         mission.monster_id = self.event_entity.entity_id
         mission.quest_level = 500
         mission.something8 = 1
-        mission.something9 = 1
+        mission.state = 1
         mission.something10 = 100
         mission.something11 = 100
         mission.chunk_x = int(self.event_entity.pos.x / CHUNK_SCALE)

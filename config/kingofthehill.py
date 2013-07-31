@@ -19,5 +19,5 @@ king_xp_bonus = 10
 # players get points based on wether they are king or not, points are
 # calculated from these durations, points are not reset when they are
 # outside of the hill area
-reward_frequency = 300
-king_reward_frequency = 1
+reward_frequency = 300 # 5 Minutes
+king_reward_frequency = 120 # 2 Minutes as King
