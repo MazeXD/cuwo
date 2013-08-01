@@ -118,17 +118,25 @@ class KotHConnection(ConnectionScript):
     def add_points(self, pts):
         new_points = self.reward_points + pts
 
-        pct = [0.25, 0.75, 0.50]
+        pct = [0.75, 0.50, 0.25]
         maxpts = self.parent.reward_points
 
         for i in xrange(len(pct)):
             if (new_points >= pct[i] * maxpts and
                     self.reward_points < pct[i] * maxpts):
-                self.connection.send_chat((("You are {}% on your way" +
-                                          " to receiving an item.")
-                                          .format(int(pct[i] * 100))))
+                self.show_koth_points()
+                break
 
         self.reward_points = new_points
+
+    def show_koth_points(self):
+        maxpts = self.parent.reward_points
+        pct = self.reward_points / maxpts * 100
+
+        self.connection.send_chat(("KotH points {}/{} ({}%)"
+                                  .format(int(self.reward_points),
+                                          int(maxpts),
+                                          int(pct))))
 
     def remove_points(self, pts):
         self.reward_points -= pts
@@ -270,7 +278,7 @@ class KotHServer(ServerScript):
                 xp += self.king_xp_bonus
                 player_script.add_points(self.king_points_per_tick)
             else:
-                player_script.add_points(self.king_points_per_tick)
+                player_script.add_points(self.points_per_tick)
 
             self.give_xp(player, xp)
 
@@ -283,8 +291,8 @@ class KotHServer(ServerScript):
 
                 print message
                 self.server.send_chat(message)
-                item = self.generate_item(self.king.entity_data)
-                self.king.give_item(item)
+                item = self.generate_item(player.entity_data)
+                player.give_item(item)
 
         self.drop_gold(self.copper_per_tick)
 
@@ -553,6 +561,11 @@ class KotHServer(ServerScript):
 
 def get_class():
     return KotHServer
+
+
+@command
+def koth_points():
+    script.parent.show_koth_points()
 
 
 @command
