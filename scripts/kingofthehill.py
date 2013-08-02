@@ -115,10 +115,38 @@ class KotHConnection(ConnectionScript):
                                      self.parent.event_dummy.entity_id)
             self.connection.send_packet(entity_packet)
 
+        for entity in self.parent.event_radius_entities.itervalues():
+            if not entity is None:
+                entity_packet.set_entity(entity,
+                                         entity.entity_id)
+                self.connection.send_packet(entity_packet)
+
+    def on_kill(self, event):
+        if self.parent.king is None:
+            return
+
+        if event.target == self.parent.king.entity_data:
+            message = 'you killed {} for {}(+{}xp) KotH points! (+king bonus)'
+            self.connection.send_chat((message
+                                       .format(event.target.name,
+                                               self.parent.kill_king_points,
+                                               self.parent.kill_king_xp)))
+            self.add_points(self.parent.kill_king_points)
+            self.parent.give_xp(self.connection, self.parent.kill_king_xp)
+
+        elif self.connection in self.parent.players_in_proximity:
+            message = 'you killed {} for {}(+{}xp) KotH points!'
+            self.connection.send_chat((message
+                                       .format(event.target.name,
+                                               self.parent.kill_points,
+                                               self.parent.kill_xp)))
+            self.add_points(self.parent.kill_points)
+            self.parent.give_xp(self.connection, self.parent.kill_xp)
+
     def add_points(self, pts):
         new_points = self.reward_points + pts
 
-        pct = [0.75, 0.50, 0.25]
+        pct = [0.80, 0.60, 0.40, 0.20]
         maxpts = self.parent.reward_points
 
         for i in xrange(len(pct)):
@@ -154,10 +182,13 @@ class KotHServer(ServerScript):
     king_xp_bonus = 10
     points_per_tick = 0
     king_points_per_tick = 0
+    kill_points = 100
+    kill_king_points = 500
     event_active = False
     event_location = None
     event_entity = None
     event_dummy = None
+    event_radius_entities = {}
     event_mission = None
     players_in_proximity = []
     king = None
@@ -181,6 +212,12 @@ class KotHServer(ServerScript):
         self.xp_per_tick = config.xp_per_tick
         self.copper_per_tick = config.copper_per_tick
         self.tick_frequency = config.tick_frequency
+
+        self.kill_points = config.kill_points
+        self.kill_king_points = config.kill_king_points
+        
+        self.kill_xp = config.kill_xp
+        self.kill_king_xp = config.kill_king_xp
 
         self.points_per_tick = (self.reward_points /
                                (config.reward_frequency /
@@ -254,10 +291,12 @@ class KotHServer(ServerScript):
                 self.king_start = time.time()
                 self.king = self.players_in_proximity[0]
                 self.event_entity.name = self.king.name
+                self.event_entity.hp = 10000000000
                 self.event_entity.mask = 0x0000FFFFFFFFFFFF
                 print "New king of the hill", self.king.name
         elif not self.king is None:
             self.event_entity.name = u"King ofthe Hill"
+            self.event_entity.hp = 10000000000
             self.event_entity.mask = 0x0000FFFFFFFFFFFF
             self.king = None
 
@@ -353,6 +392,8 @@ class KotHServer(ServerScript):
             self.proximity_radius = dist
             self.save_config()
 
+            self.start(self.event_location)
+
     def start(self, location):
         print "King of the hill mode activated at " + str(location)
         self.event_location = location.copy()
@@ -377,7 +418,7 @@ class KotHServer(ServerScript):
         entity.look_pitch = 0
         entity.physics_flags = 0
         entity.speed_flags = 6
-        entity.entity_type = 140  # Scarecrow
+        entity.entity_type = 255  # Scarecrow
         entity.current_mode = 0
         entity.mode_start_time = 0
         entity.hit_counter = 0
@@ -392,20 +433,20 @@ class KotHServer(ServerScript):
         appearance.hair_blue = 0
         appearance.movement_flags = 1
         appearance.entity_flags = 0
-        appearance.scale = 2.0
-        appearance.bounding_radius = 1.0
-        appearance.bounding_height = 6.0
+        appearance.scale = 4.0
+        appearance.bounding_radius = 4.0
+        appearance.bounding_height = 24.0
         appearance.head_model = -32767
         appearance.hair_model = -32767
         appearance.hand_model = -32767
         appearance.foot_model = -32767
-        appearance.body_model = 2109
+        appearance.body_model = 2565
         appearance.back_model = -32767
         appearance.shoulder_model = -32767
         appearance.wing_model = -32767
-        appearance.head_scale = 1.0
+        appearance.head_scale = 0.0
         appearance.body_scale = 1.0
-        appearance.hand_scale = 1.0
+        appearance.hand_scale = 0.0
         appearance.foot_scale = 1.0
         appearance.shoulder_scale = 1.0
         appearance.weapon_scale = 1.0
@@ -419,15 +460,15 @@ class KotHServer(ServerScript):
         appearance.feet_pitch = 0
         appearance.wing_pitch = 0
         appearance.back_pitch = 0
-        appearance.body_offset = Vector3()
-        appearance.head_offset = Vector3()
-        appearance.hand_offset = Vector3()
+        appearance.body_offset = Vector3(0, 0, 25)
+        appearance.head_offset = Vector3(0, 0, 0)
+        appearance.hand_offset = Vector3(0, 0, 0)
         appearance.foot_offset = Vector3()
         appearance.back_offset = Vector3()
         appearance.wing_offset = Vector3()
 
         entity.flags_1 = 0
-        entity.flags_2 = 0
+        entity.flags_2 = 2
         entity.roll_time = 0
         entity.stun_time = -10000
         entity.slowed_time = 0
@@ -472,8 +513,13 @@ class KotHServer(ServerScript):
         entity.not_used22 = 0
         entity.consumable = create_item_data()
         entity.equipment = []
-        for _ in xrange(13):
+        for i in xrange(13):
             new_item = create_item_data()
+            if i == 10:
+                # a lamp, so i can turn it on :P
+                new_item.type = 24
+                new_item.rarity = 3
+                new_item.material = 2
             entity.equipment.append(new_item)
         entity.skills = []
         for _ in xrange(11):
@@ -484,12 +530,40 @@ class KotHServer(ServerScript):
         self.event_entity = entity
         self.server.entities[entity.entity_id] = entity
 
-        dummy = copy.deepcopy(self.event_entity)
+        dummy = self.event_dummy
+
+        if dummy is None:
+            dummy = copy.deepcopy(self.event_entity)
         dummy.entity_id = 1001
         dummy.speed_flags = 1  # Hostile dummy, required for KillAction to work
         dummy.pos = Vector3(10000, 10000, 10000)
+        dummy.speed_flags = 6
         self.event_dummy = dummy
         self.server.entities[dummy.entity_id] = dummy
+
+        radius_ents = 10
+        for i in xrange(radius_ents):
+            radius_entity = None
+            if i in self.event_radius_entities:
+                radius_entity = self.event_radius_entities[i]
+
+            if radius_entity is None:
+                radius_entity = copy.deepcopy(self.event_entity)
+                radius_entity.entity_id = 1002 + i
+                radius_entity.appearance.scale = 0.5
+                radius_entity.appearance.bounding_radius = 1.0
+                radius_entity.appearance.bounding_height = 1.5
+                radius_entity.appearance.body_offset = Vector3(0, 0, 20)
+                radius_entity.speed_flags = 6
+
+            r = math.pi * 2 / radius_ents * i
+            x = math.sqrt(self.proximity_radius) * math.sin(r)
+            y = math.sqrt(self.proximity_radius) * math.cos(r)
+            radius_entity.pos = Vector3(x, y, 0) + entity.pos
+            radius_entity.hp = 10000000000
+            radius_entity.mask = 0x0000FFFFFFFFFFFF
+            self.event_radius_entities[i] = radius_entity
+            self.server.entities[radius_entity.entity_id] = radius_entity
 
         self.create_mission_data()
 

@@ -13,11 +13,17 @@ copper_per_tick = 0
 xp_per_tick = 2
 
 # How much xp the king of the hill gets on top of xp_per_tick
-king_xp_bonus = 10
+king_xp_bonus = 5
 
 # How often players get rewards
 # players get points based on wether they are king or not, points are
 # calculated from these durations, points are not reset when they are
 # outside of the hill area
-reward_frequency = 300 # 5 Minutes
-king_reward_frequency = 120 # 2 Minutes as King
+reward_frequency = 600 # 10 Minutes
+king_reward_frequency = 180 # 3 Minutes as King
+
+# Amount of points you get for kills while WITHIN the KotH area
+kill_king_points = 500
+kill_points = 100
+kill_king_xp = 20
+kill_xp = 10
