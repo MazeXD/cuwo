@@ -537,7 +537,6 @@ class KotHServer(ServerScript):
         dummy.entity_id = 1001
         dummy.speed_flags = 1  # Hostile dummy, required for KillAction to work
         dummy.pos = Vector3(10000, 10000, 10000)
-        dummy.speed_flags = 6
         self.event_dummy = dummy
         self.server.entities[dummy.entity_id] = dummy
 
