@@ -215,7 +215,7 @@ class KotHServer(ServerScript):
 
         self.kill_points = config.kill_points
         self.kill_king_points = config.kill_king_points
-        
+
         self.kill_xp = config.kill_xp
         self.kill_king_xp = config.kill_king_xp
 
@@ -417,7 +417,7 @@ class KotHServer(ServerScript):
         entity.extra_vel = Vector3()
         entity.look_pitch = 0
         entity.physics_flags = 0
-        entity.speed_flags = 6
+        entity.hostile_type = 6
         entity.entity_type = 255  # Scarecrow
         entity.current_mode = 0
         entity.mode_start_time = 0
@@ -431,7 +431,7 @@ class KotHServer(ServerScript):
         appearance.hair_red = 0
         appearance.hair_green = 0
         appearance.hair_blue = 0
-        appearance.movement_flags = 1
+        appearance.movement_flags = 0
         appearance.entity_flags = 0
         appearance.scale = 4.0
         appearance.bounding_radius = 4.0
@@ -500,7 +500,7 @@ class KotHServer(ServerScript):
         entity.parent_owner = 0
         entity.unknown_or_not_used1 = 0
         entity.unknown_or_not_used2 = 0
-        entity.unknown_or_not_used3 = 0
+        entity.power_base = 0
         entity.unknown_or_not_used4 = 0
         entity.unknown_or_not_used5 = 0
         entity.not_used11 = 0
@@ -535,7 +535,7 @@ class KotHServer(ServerScript):
         if dummy is None:
             dummy = copy.deepcopy(self.event_entity)
         dummy.entity_id = 1001
-        dummy.speed_flags = 1  # Hostile dummy, required for KillAction to work
+        dummy.hostile_type = 1  # Hostile dummy, required for KillAction
         dummy.pos = Vector3(10000, 10000, 10000)
         self.event_dummy = dummy
         self.server.entities[dummy.entity_id] = dummy
@@ -553,7 +553,7 @@ class KotHServer(ServerScript):
                 radius_entity.appearance.bounding_radius = 1.0
                 radius_entity.appearance.bounding_height = 1.5
                 radius_entity.appearance.body_offset = Vector3(0, 0, 20)
-                radius_entity.speed_flags = 6
+                radius_entity.hostile_type = 6
 
             r = math.pi * 2 / radius_ents * i
             x = math.sqrt(self.proximity_radius) * math.sin(r)
@@ -637,8 +637,8 @@ def get_class():
 
 
 @command
-def koth_points():
-    script.parent.show_koth_points()
+def koth_points(script):
+    script.show_koth_points()
 
 
 @command
