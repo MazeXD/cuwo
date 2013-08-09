@@ -7,7 +7,7 @@ from cuwo.entity import (ItemData, ItemUpgrade, NAME_BIT,
 from cuwo.packet import (KillAction, create_entity_data, MissionData,
                          EntityUpdate)
 from cuwo.vector import Vector3
-from cuwo.constants import CHUNK_SCALE, SECTOR_SCALE, BLOCK_SCALE
+from cuwo.constants import CHUNK_SCALE, SECTOR_SCALE, BLOCK_SCALE, FULL_MASK
 from cuwo.common import set_bit
 
 entity_packet = EntityUpdate()
@@ -15,7 +15,6 @@ entity_packet = EntityUpdate()
 import time
 import math
 import random
-import copy
 
 KOTH_DATA = 'kingofthehill_settings'
 
@@ -101,24 +100,146 @@ def create_item_data():
     return item_data
 
 
+def create_appearance_data():
+    appearance = AppearanceData()
+    appearance.not_used_1 = 0
+    appearance.not_used_2 = 0
+    appearance.hair_red = 0
+    appearance.hair_green = 0
+    appearance.hair_blue = 0
+    appearance.movement_flags = 0
+    appearance.entity_flags = 0
+    appearance.scale = 1.0
+    appearance.bounding_radius = 1.0
+    appearance.bounding_height = 1.0
+    appearance.head_model = -32767
+    appearance.hair_model = -32767
+    appearance.hand_model = -32767
+    appearance.foot_model = -32767
+    appearance.body_model = -32767
+    appearance.back_model = -32767
+    appearance.shoulder_model = -32767
+    appearance.wing_model = -32767
+    appearance.head_scale = 1.0
+    appearance.body_scale = 1.0
+    appearance.hand_scale = 1.0
+    appearance.foot_scale = 1.0
+    appearance.shoulder_scale = 1.0
+    appearance.weapon_scale = 1.0
+    appearance.back_scale = 1.0
+    appearance.unknown = 1.0
+    appearance.wing_scale = 1.0
+    appearance.body_pitch = 0
+    appearance.arm_pitch = 0
+    appearance.arm_roll = 0
+    appearance.arm_yaw = 0
+    appearance.feet_pitch = 0
+    appearance.wing_pitch = 0
+    appearance.back_pitch = 0
+    appearance.body_offset = Vector3()
+    appearance.head_offset = Vector3()
+    appearance.hand_offset = Vector3()
+    appearance.foot_offset = Vector3()
+    appearance.back_offset = Vector3()
+    appearance.wing_offset = Vector3()
+    return appearance
+
+
+def create_entity_data():
+    entity = EntityData()
+    entity.mask = FULL_MASK
+    entity.pos = Vector3(0, 0, 0)
+    entity.body_roll = 0
+    entity.body_pitch = 0
+    entity.body_yaw = 0
+    entity.velocity = Vector3()
+    entity.accel = Vector3()
+    entity.extra_vel = Vector3()
+    entity.look_pitch = 0
+    entity.physics_flags = 0
+    entity.hostile_type = 0
+    entity.entity_type = 0
+    entity.current_mode = 0
+    entity.mode_start_time = 0
+    entity.hit_counter = 0
+    entity.last_hit_time = 0
+    entity.appearance = create_appearance_data()
+    entity.flags_1 = 0
+    entity.flags_2 = 0
+    entity.roll_time = 0
+    entity.stun_time = -10000
+    entity.slowed_time = 0
+    entity.make_blue_time = 0
+    entity.speed_up_time = 0
+    entity.show_patch_time = 0
+    entity.class_type = 0
+    entity.specialization = 0
+    entity.charged_mp = 0
+    entity.not_used_1 = 0
+    entity.not_used_2 = 0
+    entity.not_used_3 = 0
+    entity.not_used_4 = 0
+    entity.not_used_5 = 0
+    entity.not_used_6 = 0
+    entity.ray_hit = Vector3()
+    entity.hp = 100
+    entity.mp = 0
+    entity.block_power = 0
+    entity.max_hp_multiplier = 100
+    entity.shoot_speed = 1
+    entity.damage_multiplier = 1
+    entity.armor_multiplier = 1
+    entity.resi_multiplier = 1
+    entity.not_used7 = 0
+    entity.not_used8 = 0
+    entity.level = 1
+    entity.current_xp = 0
+    entity.parent_owner = 0
+    entity.unknown_or_not_used1 = 0
+    entity.unknown_or_not_used2 = 0
+    entity.power_base = 0
+    entity.unknown_or_not_used4 = 0
+    entity.unknown_or_not_used5 = 0
+    entity.not_used11 = 0
+    entity.not_used12 = 0
+    entity.super_weird = 0
+    entity.spawn_pos = Vector3(0, 0, 0)
+    entity.not_used19 = 0
+    entity.not_used20 = 0
+    entity.not_used21 = 0
+    entity.not_used22 = 0
+    entity.consumable = create_item_data()
+    entity.equipment = []
+    for _ in xrange(13):
+        new_item = create_item_data()
+        entity.equipment.append(new_item)
+    entity.skills = []
+    for _ in xrange(11):
+        entity.skills.append(0)
+    entity.mana_cubes = 0
+    entity.name = u""
+    return entity
+
+
 class KotHConnection(ConnectionScript):
     reward_points = 0
 
     def on_join(self, event):
         if not self.parent.event_entity is None:
             entity_packet.set_entity(self.parent.event_entity,
-                                     self.parent.event_entity.entity_id)
+                                     self.parent.event_entity_id,
+                                     FULL_MASK)
             self.connection.send_packet(entity_packet)
 
         if not self.parent.event_dummy is None:
             entity_packet.set_entity(self.parent.event_dummy,
-                                     self.parent.event_dummy.entity_id)
+                                     self.parent.event_dummy_id,
+                                     FULL_MASK)
             self.connection.send_packet(entity_packet)
 
-        for entity in self.parent.event_radius_entities.itervalues():
+        for id, entity in self.parent.event_radius_entities.iteritems():
             if not entity is None:
-                entity_packet.set_entity(entity,
-                                         entity.entity_id)
+                entity_packet.set_entity(entity, id)
                 self.connection.send_packet(entity_packet)
 
     def on_kill(self, event):
@@ -292,12 +413,14 @@ class KotHServer(ServerScript):
                 self.king = self.players_in_proximity[0]
                 self.event_entity.name = self.king.name
                 self.event_entity.hp = 10000000000
-                self.event_entity.mask = 0x0000FFFFFFFFFFFF
+                self.event_entity.mask = set_bit(self.event_entity.mask,
+                                                 NAME_BIT, True)
                 print "New king of the hill", self.king.name
         elif not self.king is None:
             self.event_entity.name = u"King ofthe Hill"
             self.event_entity.hp = 10000000000
-            self.event_entity.mask = 0x0000FFFFFFFFFFFF
+            self.event_entity.mask = set_bit(self.event_entity.mask,
+                                             NAME_BIT, True)
             self.king = None
 
     def find_player_script(self, player):
@@ -382,7 +505,7 @@ class KotHServer(ServerScript):
             update_packet = self.server.update_packet
             action = KillAction()
             action.entity_id = player.entity_id
-            action.target_id = self.event_dummy.entity_id
+            action.target_id = self.event_dummy_id
             action.xp_gained = amount
             update_packet.kill_actions.append(action)
 
@@ -401,168 +524,87 @@ class KotHServer(ServerScript):
 
         entity = self.event_entity
         if entity is None:
-            entity = EntityData()
+            entity = create_entity_data()
 
-        # Fixed entity id, should be changed to some sort of entity spawning
-        # system.
+            entity.hostile_type = 2
+            entity.entity_type = 138
+    
+            entity.appearance.entity_flags = 1
+            entity.appearance.scale = 3.0
+            entity.appearance.bounding_radius = 3.0
+            entity.appearance.bounding_height = 4.0
+            entity.appearance.body_model = 2565
+            entity.appearance.head_scale = 0.0
+            entity.appearance.hand_scale = 0.0
+            entity.appearance.body_offset = Vector3(0, 0, 25)
+    
+            entity.level = math.pow(2, 31) - 1
+            entity.power_base = 0
+        
+            entity.name = u"King ofthe Hill"
+
         entity.mask = 0x0000FFFFFFFFFFFF
-        entity.entity_id = 1000
         entity.pos = location.copy()
         entity.pos += Vector3(0, 0, 100000)
-        entity.body_roll = 0
-        entity.body_pitch = 0
-        entity.body_yaw = 0
-        entity.velocity = Vector3()
-        entity.accel = Vector3()
-        entity.extra_vel = Vector3()
-        entity.look_pitch = 0
-        entity.physics_flags = 0
-        entity.hostile_type = 6
-        entity.entity_type = 255  # Scarecrow
-        entity.current_mode = 0
-        entity.mode_start_time = 0
-        entity.hit_counter = 0
-        entity.last_hit_time = 0
-
-        entity.appearance = AppearanceData()
-        appearance = entity.appearance
-        appearance.not_used_1 = 0
-        appearance.not_used_2 = 0
-        appearance.hair_red = 0
-        appearance.hair_green = 0
-        appearance.hair_blue = 0
-        appearance.movement_flags = 0
-        appearance.entity_flags = 0
-        appearance.scale = 4.0
-        appearance.bounding_radius = 4.0
-        appearance.bounding_height = 24.0
-        appearance.head_model = -32767
-        appearance.hair_model = -32767
-        appearance.hand_model = -32767
-        appearance.foot_model = -32767
-        appearance.body_model = 2565
-        appearance.back_model = -32767
-        appearance.shoulder_model = -32767
-        appearance.wing_model = -32767
-        appearance.head_scale = 0.0
-        appearance.body_scale = 1.0
-        appearance.hand_scale = 0.0
-        appearance.foot_scale = 1.0
-        appearance.shoulder_scale = 1.0
-        appearance.weapon_scale = 1.0
-        appearance.back_scale = 1.0
-        appearance.unknown = 1.0
-        appearance.wing_scale = 1.0
-        appearance.body_pitch = 0
-        appearance.arm_pitch = 0
-        appearance.arm_roll = 0
-        appearance.arm_yaw = 0
-        appearance.feet_pitch = 0
-        appearance.wing_pitch = 0
-        appearance.back_pitch = 0
-        appearance.body_offset = Vector3(0, 0, 25)
-        appearance.head_offset = Vector3(0, 0, 0)
-        appearance.hand_offset = Vector3(0, 0, 0)
-        appearance.foot_offset = Vector3()
-        appearance.back_offset = Vector3()
-        appearance.wing_offset = Vector3()
-
-        entity.flags_1 = 0
-        entity.flags_2 = 2
-        entity.roll_time = 0
-        entity.stun_time = -10000
-        entity.slowed_time = 0
-        entity.make_blue_time = 0
-        entity.speed_up_time = 0
-        entity.show_patch_time = 0
-        entity.class_type = 0
-        entity.specialization = 0
-        entity.charged_mp = 0
-        entity.not_used_1 = 0
-        entity.not_used_2 = 0
-        entity.not_used_3 = 0
-        entity.not_used_4 = 0
-        entity.not_used_5 = 0
-        entity.not_used_6 = 0
-        entity.ray_hit = Vector3()
-        entity.hp = 10000000000
-        entity.mp = 0
-        entity.block_power = 0
-        entity.max_hp_multiplier = 1000
-        entity.shoot_speed = 0
-        entity.damage_multiplier = 0
-        entity.armor_multiplier = 10000
-        entity.resi_multiplier = 10000
-        entity.not_used7 = 0
-        entity.not_used8 = 0
-        entity.level = math.pow(2, 31) - 1
-        entity.current_xp = 0
-        entity.parent_owner = 0
-        entity.unknown_or_not_used1 = 0
-        entity.unknown_or_not_used2 = 0
-        entity.power_base = 0
-        entity.unknown_or_not_used4 = 0
-        entity.unknown_or_not_used5 = 0
-        entity.not_used11 = 0
-        entity.not_used12 = 0
-        entity.super_weird = 0
         entity.spawn_pos = entity.pos
-        entity.not_used19 = 0
-        entity.not_used20 = 0
-        entity.not_used21 = 0
-        entity.not_used22 = 0
-        entity.consumable = create_item_data()
-        entity.equipment = []
-        for i in xrange(13):
-            new_item = create_item_data()
-            if i == 10:
-                # a lamp, so i can turn it on :P
-                new_item.type = 24
-                new_item.rarity = 3
-                new_item.material = 2
-            entity.equipment.append(new_item)
-        entity.skills = []
-        for _ in xrange(11):
-            entity.skills.append(0)
-        entity.mana_cubes = 0
-        entity.name = u"King ofthe Hill"
+        entity.hp = 10000000000
 
+        self.event_entity_id = 1000
         self.event_entity = entity
-        self.server.entities[entity.entity_id] = entity
+        self.server.entities[self.event_entity_id] = entity
 
+        # Create a dummy entity that is hostile, only way
+        # HitPacket will grant xp
         dummy = self.event_dummy
-
         if dummy is None:
-            dummy = copy.deepcopy(self.event_entity)
-        dummy.entity_id = 1001
-        dummy.hostile_type = 1  # Hostile dummy, required for KillAction
-        dummy.pos = Vector3(10000, 10000, 10000)
-        self.event_dummy = dummy
-        self.server.entities[dummy.entity_id] = dummy
+            dummy = create_entity_data()
+            dummy.mask = FULL_MASK
+            dummy.hostile_type = 1
 
+            self.event_dummy = dummy
+            self.event_dummy_id = 1001
+            self.server.entities[self.event_dummy_id] = dummy
+
+        # Create entities in a circle around the main pillar
         radius_ents = 10
         for i in xrange(radius_ents):
             radius_entity = None
-            if i in self.event_radius_entities:
-                radius_entity = self.event_radius_entities[i]
+            id = 1002 + i
+            if id in self.event_radius_entities:
+                radius_entity = self.event_radius_entities[id]
 
             if radius_entity is None:
-                radius_entity = copy.deepcopy(self.event_entity)
-                radius_entity.entity_id = 1002 + i
-                radius_entity.appearance.scale = 0.5
+                radius_entity = create_entity_data()
+
+                radius_entity.mask = FULL_MASK
+                radius_entity.hostile_type = 2
+                radius_entity.entity_type = 136
+
+                radius_entity.hp = 10000000000
+                radius_entity.level = math.pow(2, 31) - 1
+                radius_entity.power_base = 0
+                radius_entity.spawn_pos = self.event_entity.pos
+
+                radius_entity.appearance.scale = 1.0
                 radius_entity.appearance.bounding_radius = 1.0
                 radius_entity.appearance.bounding_height = 1.5
-                radius_entity.appearance.body_offset = Vector3(0, 0, 20)
-                radius_entity.hostile_type = 6
+                radius_entity.appearance.body_offset = Vector3(0, 0, 0)
+                radius_entity.appearance.entity_flags = 1
+                radius_entity.appearance.body_model = 2475
+                radius_entity.appearance.head_scale = 0.0
+                radius_entity.appearance.hand_scale = 0.0
+
+                radius_entity.name = u"King ofthe Hill"
 
             r = math.pi * 2 / radius_ents * i
             x = math.sqrt(self.proximity_radius) * math.sin(r)
             y = math.sqrt(self.proximity_radius) * math.cos(r)
-            radius_entity.pos = Vector3(x, y, 0) + entity.pos
+            radius_entity.pos = Vector3(x, y, 0) + self.event_entity.pos
             radius_entity.hp = 10000000000
             radius_entity.mask = 0x0000FFFFFFFFFFFF
-            self.event_radius_entities[i] = radius_entity
-            self.server.entities[radius_entity.entity_id] = radius_entity
+            radius_entity.velocity = Vector3(0, 0, -100000)
+            self.event_radius_entities[id] = radius_entity
+            self.server.entities[id] = radius_entity
 
         self.create_mission_data()
 
@@ -577,7 +619,7 @@ class KotHServer(ServerScript):
         mission.something3 = 1
         mission.mission_id = 1
         mission.something5 = 1
-        mission.monster_id = self.event_entity.entity_id
+        mission.monster_id = self.event_entity_id
         mission.quest_level = 500
         mission.something8 = 1
         mission.state = 1
