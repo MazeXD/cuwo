@@ -156,7 +156,7 @@ def create_entity_data():
     entity.accel = Vector3()
     entity.extra_vel = Vector3()
     entity.look_pitch = 0
-    entity.physics_flags = 0
+    entity.physics_flags = 17
     entity.hostile_type = 0
     entity.entity_type = 0
     entity.current_mode = 0
@@ -164,7 +164,7 @@ def create_entity_data():
     entity.hit_counter = 0
     entity.last_hit_time = 0
     entity.appearance = create_appearance_data()
-    entity.flags_1 = 0
+    entity.flags_1 = 64
     entity.flags_2 = 0
     entity.roll_time = 0
     entity.stun_time = -10000
@@ -195,18 +195,18 @@ def create_entity_data():
     entity.level = 1
     entity.current_xp = 0
     entity.parent_owner = 0
-    entity.unknown_or_not_used1 = 0
+    entity.unknown_or_not_used1 = 1
     entity.unknown_or_not_used2 = 0
     entity.power_base = 0
-    entity.unknown_or_not_used4 = 0
-    entity.unknown_or_not_used5 = 0
-    entity.not_used11 = 0
+    entity.unknown_or_not_used4 = 4294967295
+    entity.unknown_or_not_used5 = 4294967295
+    entity.not_used11 = 4294967295
     entity.not_used12 = 0
     entity.super_weird = 0
     entity.spawn_pos = Vector3(0, 0, 0)
     entity.not_used19 = 0
-    entity.not_used20 = 0
-    entity.not_used21 = 0
+    entity.not_used20 = 4294967295
+    entity.not_used21 = 4294967295
     entity.not_used22 = 0
     entity.consumable = create_item_data()
     entity.equipment = []
@@ -225,6 +225,7 @@ class KotHConnection(ConnectionScript):
     reward_points = 0
 
     def on_join(self, event):
+        pass
         if not self.parent.event_entity is None:
             entity_packet.set_entity(self.parent.event_entity,
                                      self.parent.event_entity_id,
@@ -537,10 +538,10 @@ class KotHServer(ServerScript):
             entity.appearance.head_scale = 0.0
             entity.appearance.hand_scale = 0.0
             entity.appearance.body_offset = Vector3(0, 0, 25)
-    
+
             entity.level = math.pow(2, 31) - 1
             entity.power_base = 0
-        
+
             entity.name = u"King ofthe Hill"
 
         entity.mask = 0x0000FFFFFFFFFFFF
@@ -560,6 +561,12 @@ class KotHServer(ServerScript):
             dummy = create_entity_data()
             dummy.mask = FULL_MASK
             dummy.hostile_type = 1
+            dummy.pos = Vector3(0, 0, 100000000) + entity.pos
+            dummy.spawn_pos = entity.pos
+            dummy.hp = 10000000000
+            dummy.power_base = 1
+            dummy.name = u"KOTHDummy!"
+            dummy.appearance.entity_flags = 1
 
             self.event_dummy = dummy
             self.event_dummy_id = 1001
@@ -618,8 +625,8 @@ class KotHServer(ServerScript):
         mission.something2 = 1
         mission.something3 = 1
         mission.mission_id = 1
-        mission.something5 = 1
-        mission.monster_id = self.event_entity_id
+        mission.something5 = 123456124 #self.event_entity_id # Monster id int64?
+        mission.monster_id = 321234561 # How is this monster id when its an int32?
         mission.quest_level = 500
         mission.something8 = 1
         mission.state = 1
@@ -677,6 +684,15 @@ class KotHServer(ServerScript):
 def get_class():
     return KotHServer
 
+@command
+def compare(script):
+    a =script.connection.entity_data
+    b =script.parent.event_entity
+    for k in dir(a):
+        av = getattr(a, k)
+        ab = getattr(b, k)
+        if av != ab:
+            print k, av, ab
 
 @command
 def koth_points(script):
