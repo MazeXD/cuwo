@@ -684,15 +684,6 @@ class KotHServer(ServerScript):
 def get_class():
     return KotHServer
 
-@command
-def compare(script):
-    a =script.connection.entity_data
-    b =script.parent.event_entity
-    for k in dir(a):
-        av = getattr(a, k)
-        ab = getattr(b, k)
-        if av != ab:
-            print k, av, ab
 
 @command
 def koth_points(script):
