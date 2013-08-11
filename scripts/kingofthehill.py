@@ -625,8 +625,8 @@ class KotHServer(ServerScript):
         mission.something2 = 1
         mission.something3 = 1
         mission.mission_id = 1
-        mission.something5 = 123456124 #self.event_entity_id # Monster id int64?
-        mission.monster_id = 321234561 # How is this monster id when its an int32?
+        mission.something5 = 1
+        mission.monster_id = 1000 # How is this monster id when its an int32?
         mission.quest_level = 500
         mission.something8 = 1
         mission.state = 1
